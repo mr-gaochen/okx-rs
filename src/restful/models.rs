@@ -28,6 +28,7 @@ pub struct AccountBalanceDetail {
     borrow_froz: String,
     cash_bal: String,
     ccy: String,
+    acc_avg_px: String,
 }
 
 // 查看持仓信息
