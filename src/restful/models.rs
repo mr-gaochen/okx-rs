@@ -10,7 +10,7 @@ pub struct RestApi<T> {
 
 // 查看余额
 // GET /api/v5/account/balance
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountBalance {
     adj_eq: String,
@@ -20,7 +20,7 @@ pub struct AccountBalance {
     iso_eq: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountBalanceDetail {
     avail_bal: String,
