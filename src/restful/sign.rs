@@ -1,6 +1,6 @@
 use crate::client::OkxClient;
 use anyhow::Result;
-use http::{HeaderMap, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderValue};
 use ring::hmac;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
