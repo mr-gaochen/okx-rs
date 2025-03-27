@@ -266,3 +266,18 @@ pub struct TradeOrderGet {
     pub acc_fill_sz: String,
     pub state: String, //订单状态  filled
 }
+
+///获取交易产品历史K线数据
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryCandles {
+    pub ts: String,
+    pub open: String,
+    pub high: String,
+    pub low: String,
+    pub close: String,
+    pub vol: String,
+    pub vol_ccy: String,
+    pub vol_ccy_quote: String,
+    pub confirm: String,
+}

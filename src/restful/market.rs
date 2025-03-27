@@ -1,4 +1,4 @@
-use super::models::{MarketBooks, MarketTicker, MarketTickers, RestApi};
+use super::models::{HistoryCandles, MarketBooks, MarketTicker, MarketTickers, RestApi};
 use crate::client::OkxClient;
 use anyhow::Result;
 use std::collections::BTreeMap;
@@ -55,6 +55,38 @@ impl OkxClient {
         }
         Ok(self
             .get::<RestApi<MarketBooks>>("/api/v5/market/books", &params)
+            .await?)
+    }
+
+    // 获取历史行情数据
+    //
+    pub async fn market_history_candles<T>(
+        &self,
+        inst_id: T,
+        after: Option<T>,
+        before: Option<T>,
+        bar: Option<T>,
+        limit: Option<T>,
+    ) -> Result<RestApi<HistoryCandles>>
+    where
+        T: Into<String>,
+    {
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("instId".into(), inst_id.into());
+        if let Some(after) = after {
+            params.insert("after".into(), after.into());
+        }
+        if let Some(before) = before {
+            params.insert("before".into(), before.into());
+        }
+        if let Some(bar) = bar {
+            params.insert("bar".into(), bar.into());
+        }
+        if let Some(limit) = limit {
+            params.insert("limit".into(), limit.into());
+        }
+        Ok(self
+            .get::<RestApi<HistoryCandles>>("/api/v5/market/history-candles", &params)
             .await?)
     }
 }
