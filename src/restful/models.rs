@@ -29,6 +29,7 @@ pub struct AccountBalanceDetail {
     cash_bal: String,
     ccy: String,
     acc_avg_px: String,
+    spot_upl_ratio: String,
 }
 
 // 查看持仓信息
