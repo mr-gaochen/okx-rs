@@ -13,23 +13,25 @@ pub struct RestApi<T> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountBalance {
-    adj_eq: String,
-    borrow_froz: String,
-    details: Vec<AccountBalanceDetail>,
-    imr: String,
-    iso_eq: String,
+    pub adj_eq: String,
+    pub borrow_froz: String,
+    pub details: Vec<AccountBalanceDetail>,
+    pub imr: String,
+    pub iso_eq: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountBalanceDetail {
-    avail_bal: String,
-    avail_eq: String,
-    borrow_froz: String,
-    cash_bal: String,
-    ccy: String,
-    acc_avg_px: String,
-    spot_upl_ratio: String,
+    pub avail_bal: String,
+    pub avail_eq: String,
+    pub borrow_froz: String,
+    pub cash_bal: String,
+    pub ccy: String,
+    pub acc_avg_px: String,
+    pub spot_upl_ratio: String,
+    pub spot_bal: String,
+    pub open_avg_px: String,
 }
 
 // 查看持仓信息
