@@ -284,3 +284,13 @@ pub struct HistoryCandles {
     pub vol_ccy_quote: String,
     pub confirm: String,
 }
+
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosePostion {
+    pub inst_id:String,
+    pub poss_side:String,
+    pub cl_ord_id:String,
+    pub tag:String
+}

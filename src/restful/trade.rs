@@ -1,5 +1,5 @@
 use super::models::{
-    RestApi, TradeAmendOrder, TradeCancelBatchOrders, TradeOrder, TradeOrderGet,
+    ClosePostion, RestApi, TradeAmendOrder, TradeCancelBatchOrders, TradeOrder, TradeOrderGet,
     TradeOrdersHistory, TradeOrdersPending,
 };
 use crate::client::OkxClient;
@@ -343,6 +343,36 @@ impl OkxClient {
         }
         Ok(self
             .post::<RestApi<TradeAmendOrder>>("/api/v5/trade/amend-order", &params)
+            .await?)
+    }
+
+    // 市价仓位全平
+    // POST /api/v5/trade/close-position
+    pub async fn trade_close_postion<T>(
+        &self,
+        inst_id: T,
+        mgn_mode: T,
+        ccy: Option<T>,
+        cl_ord_id: Option<T>,
+        tag: Option<T>,
+    ) -> Result<RestApi<ClosePostion>>
+    where
+        T: Into<String>,
+    {
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("instId".into(), inst_id.into());
+        params.insert("mgnMode".into(), mgn_mode.into());
+        if let Some(ccy) = ccy {
+            params.insert("ccy".into(), ccy.into());
+        }
+        if let Some(cl_ord_id) = cl_ord_id {
+            params.insert("clOrdId".into(), cl_ord_id.into());
+        }
+        if let Some(tag) = tag {
+            params.insert("tag".into(), tag.into());
+        }
+        Ok(self
+            .post::<RestApi<ClosePostion>>("/api/v5/trade/close-position", &params)
             .await?)
     }
 }
