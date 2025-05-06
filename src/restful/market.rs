@@ -59,6 +59,7 @@ impl OkxClient {
     }
 
     // 获取历史行情数据
+    // GET api/v5/market/history-candles
     pub async fn market_history_candles<T>(
         &self,
         inst_id: T,
