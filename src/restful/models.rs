@@ -1,6 +1,5 @@
-use crate::utils::de_float_from_str;
+use crate::utils::{de_float_64_from_str, de_float_from_str, de_i64_from_str};
 use serde::{Deserialize, Serialize};
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RestApi<T> {
     pub code: String,
@@ -274,23 +273,30 @@ pub struct TradeOrderGet {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryCandles {
-    pub ts: String,
-    pub open: String,
-    pub high: String,
-    pub low: String,
-    pub close: String,
-    pub vol: String,
-    pub vol_ccy: String,
-    pub vol_ccy_quote: String,
+    #[serde(deserialize_with = "de_i64_from_str")]
+    pub ts: i64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub open: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub high: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub low: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub close: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub vol: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub vol_ccy: f64,
+    #[serde(deserialize_with = "de_float_64_from_str")]
+    pub vol_ccy_quote: f64,
     pub confirm: String,
 }
-
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClosePostion {
-    pub inst_id:String,
-    pub poss_side:String,
-    pub cl_ord_id:String,
-    pub tag:String
+    pub inst_id: String,
+    pub poss_side: String,
+    pub cl_ord_id: String,
+    pub tag: String,
 }
