@@ -64,7 +64,7 @@ impl OkxClient {
         &self,
         inst_id: T,
         after: Option<String>,
-        before: i64,
+        before: Option<String>,
         bar: Option<String>,
         limit: Option<T>,
     ) -> Result<RestApi<HistoryCandles>>
