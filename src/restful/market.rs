@@ -63,9 +63,9 @@ impl OkxClient {
     pub async fn market_history_candles<T>(
         &self,
         inst_id: T,
-        after: i64,
+        after: Option<String>,
         before: i64,
-        bar: Option<T>,
+        bar: Option<String>,
         limit: Option<T>,
     ) -> Result<RestApi<HistoryCandles>>
     where
@@ -73,8 +73,8 @@ impl OkxClient {
     {
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("instId".into(), inst_id.into());
-        params.insert("after".into(), after.to_string());
-        params.insert("before".into(), before.to_string());
+        // params.insert("after".into(), after.to_string());
+        // params.insert("before".into(), before.to_string());
         if let Some(bar) = bar {
             params.insert("bar".into(), bar.into());
         }
