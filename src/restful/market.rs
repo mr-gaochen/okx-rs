@@ -85,4 +85,23 @@ impl OkxClient {
             .get::<RestApi<HistoryCandles>>("/api/v5/market/history-candles", &params)
             .await?)
     }
+
+    // 获取产品历史行情
+    pub async fn market_candles<T>(
+        &self,
+        inst_id: T,
+        bar: Option<String>,
+    ) -> Result<RestApi<HistoryCandles>>
+    where
+        T: Into<String>,
+    {
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("instId".into(), inst_id.into());
+        if let Some(bar) = bar {
+            params.insert("bar".into(), bar.into());
+        }
+        Ok(self
+            .get::<RestApi<HistoryCandles>>("/api/v5/market/candles", &params)
+            .await?)
+    }
 }
