@@ -23,6 +23,7 @@ type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 async fn connect_websocket(
     ws_url: &str,
 ) -> Result<(WsStream, mpsc::Sender<Message>, mpsc::Receiver<Message>)> {
+    info!("websocket connecting to {}", ws_url);
     let (ws_stream, _) = connect_async(ws_url).await?;
     let (tx, rx) = mpsc::channel(100);
     Ok((ws_stream, tx, rx))
