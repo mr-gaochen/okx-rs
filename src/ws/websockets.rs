@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use anyhow::Result;
-use chrono::Utc;
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
@@ -10,6 +9,7 @@ use tokio::{
     time::{sleep, Duration},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use tracing::info;
 
 use super::types::{MessageCallback, MessageHandler};
 
@@ -43,7 +43,7 @@ where
         ]
     })
     .to_string();
-    println!("订阅消息:{:?}", subscribe_msg);
+    info!("订阅消息:{:?}", subscribe_msg);
     write
         .send(Message::Text(subscribe_msg))
         .await
@@ -75,7 +75,7 @@ async fn run_internal(
     handler: Option<Arc<dyn MessageHandler>>,
     callback: Option<MessageCallback>,
 ) -> Result<()> {
-    println!("初始化 【OKX】 WebSocket...");
+    info!("初始化 【OKX】 WebSocket...");
     let mut retry_count = 0;
     let mut retry_delay = RETRY_DELAY;
 
@@ -88,7 +88,7 @@ async fn run_internal(
                 {
                     let mut writer = write.lock().await;
                     if let Err(e) = subscribe_channel(&mut *writer, interval, symbol).await {
-                        println!("【OKX】 订阅失败: {:?}", e);
+                        info!("【OKX】 订阅失败: {:?}", e);
                         continue;
                     }
                 }
@@ -105,7 +105,7 @@ async fn run_internal(
                         _ = sleep(Duration::from_secs(HEARTBEAT_INTERVAL)) => {
                             let mut writer = write_clone_heartbeat.lock().await;
                             if let Err(e) = writer.send(Message::Text("ping".to_string())).await {
-                                println!("BitUnix 发送心跳失败: {:?}", e);
+                                info!("【OKX】 心跳发送失败: {:?}", e);
                                 break;
                             }
                         }
@@ -114,7 +114,7 @@ async fn run_internal(
                         _ = sleep(Duration::from_secs(60)) => {
                             let mut writer = write_clone_subscribe.lock().await;
                             if let Err(e) = subscribe_channel(&mut *writer, interval, symbol).await {
-                                println!("【OKX】 定时订阅失败: {:?}", e);
+                                info!("【OKX】 定时订阅失败: {:?}", e);
                             }
                         }
 
@@ -122,7 +122,7 @@ async fn run_internal(
                         Some(msg) = rx.recv() => {
                             let mut writer = write.lock().await;
                             if let Err(e) = writer.send(msg).await {
-                                println!("【OKX】 发送消息失败: {:?}", e);
+                                info!("【OKX】 发送消息失败: {:?}", e);
                                 break;
                             }
                         }
@@ -140,7 +140,7 @@ async fn run_internal(
                                 }
                                 Ok(_) => {} // 非文本消息忽略
                                 Err(e) => {
-                                    println!("【OKX】 接收 WebSocket 消息失败: {:?}", e);
+                                    info!("【OKX】 接收 WebSocket 消息失败: {:?}", e);
                                     break;
                                 }
                             }
@@ -152,17 +152,17 @@ async fn run_internal(
             }
 
             Err(e) => {
-                println!("【OKX】 连接失败: {:?}", e);
+                info!("【OKX】 连接失败: {:?}", e);
             }
         }
 
         retry_count += 1;
         if retry_count >= MAX_RETRY_ATTEMPTS {
-            println!("【OKX】 已达到最大重试次数，退出。");
+            info!("【OKX】 已达到最大重试次数，退出。");
             break;
         }
 
-        println!("【OKX】 {} 秒后重试连接...", retry_delay);
+        info!("【OKX】 {} 秒后重试连接...", retry_delay);
         sleep(Duration::from_secs(retry_delay)).await;
         retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
     }
