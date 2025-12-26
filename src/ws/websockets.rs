@@ -21,9 +21,8 @@ const MAX_RETRY_DELAY: u64 = 60;
 type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn connect_websocket(
-    wss_domain: &str,
+    ws_url: &str,
 ) -> Result<(WsStream, mpsc::Sender<Message>, mpsc::Receiver<Message>)> {
-    let ws_url = format!("wss://{}/ws/v5/business", wss_domain);
     let (ws_stream, _) = connect_async(&ws_url).await?;
     let (tx, rx) = mpsc::channel(100);
     Ok((ws_stream, tx, rx))
@@ -76,7 +75,6 @@ async fn run_internal(
     handler: Option<Arc<dyn MessageHandler>>,
     callback: Option<MessageCallback>,
 ) -> Result<()> {
-    println!("初始化 【OKX】 WebSocket...");
     let mut retry_count = 0;
     let mut retry_delay = RETRY_DELAY;
 
