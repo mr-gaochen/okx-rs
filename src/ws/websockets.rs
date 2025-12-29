@@ -75,98 +75,80 @@ async fn run_internal(
     handler: Option<Arc<dyn MessageHandler>>,
     callback: Option<MessageCallback>,
 ) -> Result<()> {
-    info!("初始化 【OKX】 WebSocket...");
-
-    let mut retry_count = 0;
     let mut retry_delay = RETRY_DELAY;
+    let mut retry_count = 0;
 
     loop {
-        match connect_websocket(wss_domain).await {
-            Ok((ws_stream, _tx, _rx)) => {
-                let (write_half, mut read_half) = ws_stream.split();
-                let write = Arc::new(Mutex::new(write_half));
+        info!("【OKX】connecting {}", wss_domain);
 
-                // 1️⃣ 初始订阅
-                {
-                    let mut w = write.lock().await;
-                    subscribe_channel(&mut *w, interval, symbol).await?;
+        match connect_async(wss_domain).await {
+            Ok((ws_stream, _)) => {
+                info!("【OKX】TCP + TLS connected");
+
+                let (mut write, mut read) = ws_stream.split();
+
+                // ✅ 等待服务端首条消息（非常关键）
+                match read.next().await {
+                    Some(Ok(Message::Text(text))) => {
+                        info!("【OKX】server hello: {}", text);
+                    }
+                    other => {
+                        info!("【OKX】no hello msg: {:?}", other);
+                        continue;
+                    }
                 }
 
-                retry_count = 0;
+                // ✅ 只订阅一次
+                subscribe_channel(&mut write, interval, symbol).await?;
+
                 retry_delay = RETRY_DELAY;
+                retry_count = 0;
 
-                // 2️⃣ 低频订阅刷新（避免 OKX 清状态）
-                let mut resub_timer = tokio::time::interval(Duration::from_secs(60));
-
-                // 3️⃣ 主循环
                 loop {
-                    tokio::select! {
-                        _ = resub_timer.tick() => {
-                            let mut w = write.lock().await;
-                            if let Err(e) = subscribe_channel(&mut *w, interval, symbol).await {
-                                info!("【OKX】订阅刷新失败: {:?}", e);
+                    match read.next().await {
+                        Some(Ok(Message::Text(text))) => {
+                            if text == "ping" {
+                                write.send(Message::Text("pong".into())).await?;
+                                continue;
+                            }
+
+                            if let Some(ref h) = handler {
+                                h.handle(&text).await;
+                            }
+
+                            if let Some(ref cb) = callback {
+                                cb(&text).await;
                             }
                         }
 
-                        msg = read_half.next() => {
-                            match msg {
-                                Some(Ok(Message::Text(text))) => {
-                                    // ✅ OKX 心跳处理
-                                    if text == "ping" {
-                                        let mut w = write.lock().await;
-                                        if let Err(e) = w.send(Message::Text("pong".into())).await {
-                                            info!("【OKX】pong 发送失败: {:?}", e);
-                                            break;
-                                        }
-                                        continue;
-                                    }
-
-                                    if let Some(ref h) = handler {
-                                        h.handle(&text).await;
-                                    }
-
-                                    if let Some(ref cb) = callback {
-                                        cb(&text).await;
-                                    }
-                                }
-
-                                Some(Ok(Message::Close(frame))) => {
-                                    info!("【OKX】服务端关闭连接: {:?}", frame);
-                                    break;
-                                }
-
-                                Some(Err(e)) => {
-                                    info!("【OKX】读取消息失败: {:?}", e);
-                                    break;
-                                }
-
-                                None => {
-                                    info!("【OKX】WebSocket 流结束");
-                                    break;
-                                }
-
-                                _ => {}
-                            }
+                        Some(Ok(Message::Close(frame))) => {
+                            info!("【OKX】server close: {:?}", frame);
+                            break;
                         }
+
+                        Some(Err(e)) => {
+                            info!("【OKX】read error: {:?}", e);
+                            break;
+                        }
+
+                        None => break,
+                        _ => {}
                     }
                 }
             }
 
             Err(e) => {
-                info!("【OKX】连接失败: {:?}", e);
+                info!("【OKX】connect failed: {:?}", e);
             }
         }
 
         retry_count += 1;
         if retry_count >= MAX_RETRY_ATTEMPTS {
-            info!("【OKX】达到最大重试次数，退出");
-            break;
+            return Err(anyhow!("max retry reached"));
         }
 
-        info!("【OKX】{} 秒后重连...", retry_delay);
+        info!("【OKX】reconnect in {}s", retry_delay);
         sleep(Duration::from_secs(retry_delay)).await;
         retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
     }
-
-    Ok(())
 }
