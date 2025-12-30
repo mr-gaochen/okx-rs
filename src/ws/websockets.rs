@@ -1,15 +1,14 @@
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::{
     select,
-    sync::{mpsc, Mutex},
-    time::{sleep, Duration},
+    sync::mpsc,
+    time::{sleep, Duration, Instant},
 };
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
-use tracing::info;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tracing::{info, warn};
 
 use super::types::{MessageCallback, MessageHandler};
 
@@ -17,37 +16,41 @@ const RETRY_DELAY: u64 = 5;
 const MAX_RETRY_ATTEMPTS: u32 = 10;
 const MAX_RETRY_DELAY: u64 = 60;
 
-type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+const PING_INTERVAL: u64 = 20;
+const READ_TIMEOUT: u64 = 60;
 
-async fn connect_websocket(
-    ws_url: &str,
-) -> Result<(WsStream, mpsc::Sender<Message>, mpsc::Receiver<Message>)> {
-    info!("websocket connecting to {}", ws_url);
-    let (ws_stream, _) = connect_async(ws_url).await?;
-    let (tx, rx) = mpsc::channel(100);
-    Ok((ws_stream, tx, rx))
+async fn connect(ws_url: &str) -> Result<tokio_tungstenite::WebSocketStream<_>> {
+    info!("【OKX】连接 {}", ws_url);
+    let (ws, _) = connect_async(ws_url).await?;
+    Ok(ws)
 }
 
-async fn subscribe_channel<S>(write: &mut S, interval: &str, symbol: &str) -> Result<()>
+fn subscribe_msg(interval: &str, symbol: &str) -> Message {
+    Message::Text(
+        json!({
+            "op": "subscribe",
+            "args": [{
+                "instType": "SWAP",
+                "instId": symbol,
+                "channel": interval
+            }]
+        })
+        .to_string(),
+    )
+}
+
+async fn write_task<W>(mut write: W, mut rx: mpsc::Receiver<Message>) -> Result<()>
 where
-    S: SinkExt<Message> + Unpin,
-    S::Error: std::fmt::Debug, // 加上这句约束
+    W: SinkExt<Message> + Unpin,
+    W::Error: std::fmt::Debug,
 {
-    let subscribe_msg = json!({
-        "op": "subscribe",
-        "args": [{
-            "instId":symbol,
-            "channel": interval,
-            "instType": "SWAP"
-        }
-        ]
-    })
-    .to_string();
-    info!("订阅消息:{:?}", subscribe_msg);
-    write
-        .send(Message::Text(subscribe_msg))
-        .await
-        .map_err(|e| anyhow!("【OKX】订阅消息发送失败: {:?}", e))
+    while let Some(msg) = rx.recv().await {
+        write
+            .send(msg)
+            .await
+            .map_err(|e| anyhow!("【OKX】写入失败: {:?}", e))?;
+    }
+    Ok(())
 }
 
 pub async fn run_with_handler(
@@ -75,73 +78,63 @@ async fn run_internal(
     handler: Option<Arc<dyn MessageHandler>>,
     callback: Option<MessageCallback>,
 ) -> Result<()> {
-    info!("初始化 【OKX】 WebSocket...");
-
-    let mut retry_count = 0;
-    let mut retry_delay = RETRY_DELAY;
+    let mut retry = 0;
+    let mut delay = RETRY_DELAY;
 
     loop {
-        match connect_websocket(wss_domain).await {
-            Ok((ws_stream, _tx, _rx)) => {
-                let (write_half, mut read_half) = ws_stream.split();
-                let write = Arc::new(Mutex::new(write_half));
+        match connect(wss_domain).await {
+            Ok(ws) => {
+                let (write, mut read) = ws.split();
+                let (tx, rx) = mpsc::channel::<Message>(128);
 
-                // 1️⃣ 初始订阅
-                {
-                    let mut w = write.lock().await;
-                    subscribe_channel(&mut *w, interval, symbol).await?;
-                }
+                // 启动写任务
+                let writer = tokio::spawn(write_task(write, rx));
 
-                retry_count = 0;
-                retry_delay = RETRY_DELAY;
+                // 初始订阅
+                tx.send(subscribe_msg(interval, symbol)).await.ok();
 
-                // 2️⃣ 低频订阅刷新（避免 OKX 清状态）
-                let mut resub_timer = tokio::time::interval(Duration::from_secs(60));
+                let mut last_msg = Instant::now();
+                let mut ping_timer = tokio::time::interval(Duration::from_secs(PING_INTERVAL));
 
-                // 3️⃣ 主循环
                 loop {
-                    tokio::select! {
-                        _ = resub_timer.tick() => {
-                            let mut w = write.lock().await;
-                            if let Err(e) = subscribe_channel(&mut *w, interval, symbol).await {
-                                info!("【OKX】订阅刷新失败: {:?}", e);
+                    select! {
+                        _ = ping_timer.tick() => {
+                            if last_msg.elapsed() > Duration::from_secs(READ_TIMEOUT) {
+                                warn!("【OKX】读超时，触发重连");
+                                break;
                             }
+                            tx.send(Message::Text("ping".into())).await.ok();
                         }
 
-                        msg = read_half.next() => {
+                        msg = read.next() => {
                             match msg {
                                 Some(Ok(Message::Text(text))) => {
-                                    // ✅ OKX 心跳处理
-                                    if text == "ping" {
-                                        let mut w = write.lock().await;
-                                        if let Err(e) = w.send(Message::Text("pong".into())).await {
-                                            info!("【OKX】pong 发送失败: {:?}", e);
-                                            break;
-                                        }
+                                    last_msg = Instant::now();
+
+                                    if text == "pong" {
                                         continue;
                                     }
 
                                     if let Some(ref h) = handler {
                                         h.handle(&text).await;
                                     }
-
                                     if let Some(ref cb) = callback {
                                         cb(&text).await;
                                     }
                                 }
 
-                                Some(Ok(Message::Close(frame))) => {
-                                    info!("【OKX】服务端关闭连接: {:?}", frame);
+                                Some(Ok(Message::Close(f))) => {
+                                    info!("【OKX】服务端关闭: {:?}", f);
                                     break;
                                 }
 
                                 Some(Err(e)) => {
-                                    info!("【OKX】读取消息失败: {:?}", e);
+                                    warn!("【OKX】读取错误: {:?}", e);
                                     break;
                                 }
 
                                 None => {
-                                    info!("【OKX】WebSocket 流结束");
+                                    warn!("【OKX】连接断开");
                                     break;
                                 }
 
@@ -150,22 +143,26 @@ async fn run_internal(
                         }
                     }
                 }
+
+                writer.abort();
+                retry = 0;
+                delay = RETRY_DELAY;
             }
 
             Err(e) => {
-                info!("【OKX】连接失败: {:?}", e);
+                warn!("【OKX】连接失败: {:?}", e);
             }
         }
 
-        retry_count += 1;
-        if retry_count >= MAX_RETRY_ATTEMPTS {
-            info!("【OKX】达到最大重试次数，退出");
+        retry += 1;
+        if retry >= MAX_RETRY_ATTEMPTS {
+            warn!("【OKX】超过最大重试次数");
             break;
         }
 
-        info!("【OKX】{} 秒后重连...", retry_delay);
-        sleep(Duration::from_secs(retry_delay)).await;
-        retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
+        info!("【OKX】{} 秒后重连", delay);
+        sleep(Duration::from_secs(delay)).await;
+        delay = (delay * 2).min(MAX_RETRY_DELAY);
     }
 
     Ok(())
