@@ -1,15 +1,10 @@
-use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-pub struct OkxWsMessage {
-    pub arg: Option<OkxArg>,
-    pub event: Option<String>,
-    pub data: Option<Vec<Vec<String>>>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OkxArg {
-    pub channel: String,
-    pub inst_id: String,
+#[derive(Debug, Clone)]
+pub struct Candle {
+    pub ts: i64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: f64,
+    pub confirm: bool,
 }
