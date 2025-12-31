@@ -41,15 +41,12 @@ pub fn extract_okx_candles(json: &Value) -> Result<OkxCandleMsg> {
             volume: parse_f64(&arr[5])?,
             confirm: arr[8].as_str() == Some("1"),
         };
-
-        Ok(OkxCandleMsg {
-            channel,
-            inst_id,
-            candles,
-        })
     }
-
-    Ok(candles)
+    Ok(OkxCandleMsg {
+        channel,
+        inst_id,
+        candles,
+    })
 }
 
 fn parse_i64(v: &Value) -> Result<i64> {
