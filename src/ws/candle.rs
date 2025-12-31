@@ -41,6 +41,7 @@ pub fn extract_okx_candles(json: &Value) -> Result<OkxCandleMsg> {
             volume: parse_f64(&arr[5])?,
             confirm: arr[8].as_str() == Some("1"),
         };
+        candles.push(candle);
     }
     Ok(OkxCandleMsg {
         channel,
