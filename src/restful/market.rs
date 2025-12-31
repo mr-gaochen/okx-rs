@@ -73,8 +73,12 @@ impl OkxClient {
     {
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("instId".into(), inst_id.into());
-        // params.insert("after".into(), after.to_string());
-        // params.insert("before".into(), before.to_string());
+        if let Some(after) = after {
+            params.insert("after".into(), after.into());
+        }
+        if let Some(before) = before {
+            params.insert("before".into(), before.into());
+        }
         if let Some(bar) = bar {
             params.insert("bar".into(), bar.into());
         }
