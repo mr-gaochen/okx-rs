@@ -8,3 +8,10 @@ pub struct Candle {
     pub volume: f64,
     pub confirm: bool,
 }
+
+#[derive(Debug, Clone)]
+pub struct OkxCandleMsg {
+    pub channel: String,
+    pub inst_id: String,
+    pub candles: Vec<Candle>,
+}

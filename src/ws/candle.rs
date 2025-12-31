@@ -1,9 +1,23 @@
 use anyhow::{anyhow, Result};
 use serde_json::Value;
 
-use crate::ws::model::Candle;
+use crate::ws::model::{Candle, OkxCandleMsg};
 
-pub fn extract_okx_candles(json: &Value) -> Result<Vec<Candle>> {
+pub fn extract_okx_candles(json: &Value) -> Result<OkxCandleMsg> {
+    let arg = json.get("arg").ok_or_else(|| anyhow!("no arg"))?;
+
+    let channel = arg
+        .get("channel")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow!("no channel"))?
+        .to_string();
+
+    let inst_id = arg
+        .get("instId")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow!("no instId"))?
+        .to_string();
+
     let data = json
         .get("data")
         .ok_or_else(|| anyhow!("no data"))?
@@ -28,7 +42,11 @@ pub fn extract_okx_candles(json: &Value) -> Result<Vec<Candle>> {
             confirm: arr[8].as_str() == Some("1"),
         };
 
-        candles.push(candle);
+        Ok(OkxCandleMsg {
+            channel,
+            inst_id,
+            candles,
+        })
     }
 
     Ok(candles)
