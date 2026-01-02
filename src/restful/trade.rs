@@ -351,7 +351,7 @@ impl OkxClient {
     pub async fn trade_close_postion<T>(
         &self,
         inst_id: T,
-        pos_side: T,
+        pos_side: Option<T>,
         mgn_mode: T,
         ccy: Option<T>,
         cl_ord_id: Option<T>,
@@ -363,7 +363,11 @@ impl OkxClient {
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("instId".into(), inst_id.into());
         params.insert("mgnMode".into(), mgn_mode.into());
-        params.insert("posSide".into(), pos_side.into());
+
+        if let Some(pos_side) = pos_side {
+            params.insert("posSide".into(), pos_side.into());
+        }
+
         if let Some(ccy) = ccy {
             params.insert("ccy".into(), ccy.into());
         }
